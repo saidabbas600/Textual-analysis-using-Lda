@@ -1,0 +1,1581 @@
+---
+title: "Analysis Chapter"
+author: "SAID ABBAS"
+format: docx
+output:
+  webshot: true
+---
+
+## LIBRARIES
+
+```{r,warning=FALSE, message=FALSE}
+library(tm)
+library(NLP)
+library(randomForest)
+library(SnowballC)
+library(wordcloud)
+library(wordcloud2)
+library(RColorBrewer)
+library(syuzhet)
+library(sentimentr)
+library(ggplot2)
+library(plotly)
+library(stringr)
+library(tidyverse)
+library(tidytext)
+library(topicmodels)
+library(tidyr)
+library(dplyr)
+library(slam)
+library(text)
+library(glmnet)
+library(caret)
+library(e1071)
+library(igraph)
+library(ggraph)
+library(visNetwork)
+library(LDAvis)
+library(textmineR)
+library(stringi)
+library(pdftools)
+library(rvest)
+library(readtext)
+library(textstem)
+library(ldatuning)
+library(knitr)
+library(kableExtra)
+library(reshape2)
+library(pheatmap)
+library(Matrix)
+library(slam)
+library(stm)
+library(stringr)
+library(officer)
+library(rvg)
+library(htmlwidgets)
+library(webshot2)
+library(knitr)
+
+```
+
+# Loading Files
+
+```{r}
+# Set the directory path
+dir_path <-"D:\\thesis\\data mining wiith r\\s abbas txt\\MPS.txt"
+
+# Read all text files into a single data frame
+text_data <- readtext(paste0(dir_path, "\\*.txt"), encoding = "UTF-8")
+```
+
+# Background
+
+Using cutting-edge methodologies, the study focuses on the textual analysis of Pakistan's monetary policy announcements published by the State Bank of Pakistan in order to investigate their influence on financial and economic discourse. The study attempts to identify underlying attitudes, themes, and policy narratives throughout time using thorough preprocessing, sentiment analysis, Latent Dirichlet Allocation (LDA), tailored topic modeling, and ridge and lasso regression. Key economic events are examined in connection to sentiment changes, including increases in both positive and negative sentiment. Additionally, topic modeling is utilized to pinpoint changing policy themes, and regression analysis is utilized to investigate the connections among sentiment, subjects, and economic indicators. This study advances knowledge of how market perceptions and economic decision-making in Pakistan are impacted by monetary policy messaging.
+
+# Research Questions
+
+1.  How do sentiment patterns in Pakistan’s monetary policy statements influence economic indicators?
+
+2.  What are the dominant topics in Pakistan’s monetary policy statements, and how have these topics evolved over time? And what is the tone of monetary policy of Pakistan ?
+
+# Research Objectives
+
+1.  To identify and track the evolution of topics discussed in Pakistan’s monetary policy statements using topic modeling techniques like LDA and customized models.
+
+2.  To analyze the sentiment in monetary policy statements and investigate its relationship with key economic variables such as GDP growth, inflation, and interest rates.
+
+# Contribution to Literature
+
+After studying a wide range of literature no one have used these methodologies in such a wide range in research in economics sciences. Majority of work is done in computer science and data science literature.
+
+# Preprocessing
+
+The unprocessed text is initially transformed into a corpus (a structured collection of textual data). Subsequently, the entire corpus is transformed to lowercase to eliminate differences arising from varying capitalization of identical terms (e.g., "Data" versus "data"). Numbers were then eliminated from the corpus text, as they frequently do not enhance the semantic meaning in text analysis. Punctuation and whitespace were eliminated. Stop words in English (e.g., "and," "the," "is") were eliminated from the corpus, as they had minimal semantic value and are frequently filtered out to diminish noise and concentrate on significant terms exclusively. I also employ lemmatization on the text, as it reduces words to their base or dictionary form (e.g., "running" to "run") while preserving the word's significant context.\
+\
+The corpus was tokenized, dividing each document into distinct words or tokens.Tokenization is essential for text analysis, frequency counting, and facilitates the transformation of text into a structured format suited for modeling.\
+\
+Following tokenization, the tokens were reassembled into a single string in "processed_corpus" to ensure the text remained in an appropriate format for analysis.
+
+```{r}
+# new 
+library(tm)
+library(dplyr)
+
+# Custom stop words for economic text (example list, you can expand as needed)
+economic_stopwords <- c("the", "and", "for", "to", "of", "a", "in", "on", "at", "with", "as", "is", "that", "by", "it", "this", "from", "be", "are", "an", "was", "were")
+
+# Tokenize the text (split by non-word characters and punctuation)
+tokenize <- function(text) {
+  # This splits by non-word characters (punctuation) but keeps words intact
+  unlist(strsplit(text, "\\W+"))
+}
+
+# Create a corpus from the text data
+corpus <- Corpus(VectorSource(text_data$text))
+
+# Convert to lowercase
+corpus <- tm_map(corpus, content_transformer(tolower))
+
+# Apply tokenization to the corpus (apply to each document in the corpus)
+tokens <- lapply(corpus, function(doc) tokenize(as.character(doc)))
+
+# Remove numbers from the tokens
+tokens <- lapply(tokens, function(doc_tokens) doc_tokens[!grepl("\\d", doc_tokens)])
+
+# Remove custom stop words specific to economics (this list can be expanded)
+tokens <- lapply(tokens, function(doc_tokens) doc_tokens[!doc_tokens %in% economic_stopwords])
+
+# Remove punctuation from the tokens (no punctuation left, as split already happens on \\W+)
+tokens <- lapply(tokens, function(doc_tokens) doc_tokens[!grepl("[[:punct:]]", doc_tokens)])
+
+# Filter out empty tokens (in case some were empty after cleaning)
+tokens <- lapply(tokens, function(doc_tokens) doc_tokens[nchar(doc_tokens) > 0])
+
+# Combine tokens back into a single string for each document
+processed_corpus <- sapply(tokens, function(x) paste(x, collapse = " "))
+
+# Create a cleaned corpus with processed text
+text_data_clean <- data.frame(text = processed_corpus, stringsAsFactors = FALSE)
+
+# Check the number of documents left after cleaning
+nrow(text_data_clean)
+
+```
+
+```{r}
+# Create a corpus from the text data
+corpus <- Corpus(VectorSource(text_data$text))
+
+# Convert to lowercase
+corpus <- tm_map(corpus, content_transformer(tolower))
+
+# Remove numbers
+corpus <- tm_map(corpus, removeNumbers)
+
+# Remove punctuation
+corpus <- tm_map(corpus, removePunctuation)
+
+# Remove whitespace
+corpus <- tm_map(corpus, stripWhitespace)
+
+# Remove English stop words
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+
+# --- Use Lemmatization instead of Stemming ---
+corpus <- tm_map(corpus, content_transformer(lemmatize_strings))
+
+# Tokenize the text
+tokenize <- function(text) {
+  unlist(strsplit(text, "\\W"))
+}
+
+tokens <- lapply(corpus, tokenize)
+
+# Combine tokens back into a single string
+processed_corpus <- sapply(tokens, function(x) paste(x, collapse = " "))
+```
+
+```{r}
+# new added
+library(tidyverse)
+library(tidytext)
+
+# Combine the processed corpus into a single string and convert it into a tibble
+processed_corpus_df <- tibble(text = processed_corpus)
+
+# Tokenize into bigrams
+bigrams <- processed_corpus_df %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+# Count the frequency of each bigram
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+
+# Filter to the top 150 most frequent bigrams
+top_bigrams <- bigram_counts %>%
+  top_n(150, n)
+
+# Separate bigrams into two columns: word1 and word2
+top_bigrams_separated <- top_bigrams %>%
+  separate(bigram, into = c("word1", "word2"), sep = " ")
+
+# Display the top bigrams
+print(top_bigrams_separated)
+
+```
+
+## TF-DF
+
+```{r}
+# Function to calculate Term Frequency
+compute_term_frequency <- function(document) {
+  # Convert the document to lowercase
+  document <- tolower(document)
+  
+  # Tokenize the document (split into words)
+  words <- unlist(strsplit(document, "\\s+"))
+  
+  # Remove punctuation and empty strings
+  words <- gsub("[[:punct:]]", "", words)
+  words <- words[words != ""]
+  
+  # Count the occurrences of each word
+  word_counts <- table(words)
+  
+  # Calculate term frequency
+  total_words <- sum(word_counts)
+  term_frequency <- word_counts / total_words
+  
+  # Return as a data frame
+  tf_df <- data.frame(Term = names(term_frequency), Frequency = as.numeric(term_frequency))
+  return(tf_df)
+}
+
+# Example usage
+document <- "Sentiment analysis is the process of determining sentiment in text data."
+tf <- compute_term_frequency(document)
+
+# Print Term Frequency
+print(tf)
+
+```
+
+```{r}
+library(igraph)
+library(ggraph)
+
+# Ensure column names are correct
+colnames(top_150_bigrams) <- c("from", "to", "n")
+
+# Create a graph from the top 150 bigrams
+bigram_graph <- graph_from_data_frame(top_150_bigrams, directed = FALSE)
+
+# Plot the bigram co-occurrence network
+set.seed(123)
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link(aes(width = n), color = "grey70", alpha = 0.8, show.legend = FALSE) +
+  geom_node_point(color = "yellow", size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE, size = 4, color = "black", fontface = "bold") +
+  theme_void() +
+  labs(title = "Co-occurrence Network of Top 150 Bigrams") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold", color = "black"),
+    plot.margin = unit(c(10, 10, 10, 10), "pt")  # Corrected margin specification
+  )
+
+```
+
+```{r}
+library(igraph)
+library(ggraph)
+
+# Create a graph from the top bigrams
+bigram_graph <- graph_from_data_frame(top_bigrams_separated, directed = FALSE)
+
+# Plot the bigram co-occurrence network
+set.seed(123)
+
+# Plot the network using ggraph
+ggraph(bigram_graph, layout = "fr") +         # Fruchterman-Reingold layout for even spacing
+  geom_edge_link(aes(width = E(bigram_graph)$n), color = "grey80", show.legend = FALSE) +  # Edges based on frequency
+  geom_node_point(color = "orange", size = 4) +        # Adjust node color and size
+  geom_node_text(aes(label = name), repel = TRUE,      # Use repel to avoid overlapping labels
+                 size = 3, color = "black") +          # Adjust label size and color
+  theme_void() +                                       # Remove background for a cleaner look
+  labs(title = "Co-occurrence Network of Top 150 Bigrams") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")  # Center and style title
+  )
+
+```
+
+# Sentiments
+
+```{r,eval=FALSE}
+# Perform sentiment analysis
+sentiment_scores <- get_nrc_sentiment(processed_corpus)
+
+# Syuzhet Sentiment Analysis
+syuzhet_vector <- get_sentiment(processed_corpus, method = "syuzhet")
+summary(syuzhet_vector)
+
+# Bing Sentiment Analysis
+bing_vector <- get_sentiment(processed_corpus, method = "bing")
+summary(bing_vector)
+
+# AFINN Sentiment Analysis
+afinn_vector <- get_sentiment(processed_corpus, method = "afinn")
+summary(afinn_vector)
+
+
+```
+
+\
+
+-   The sentiment analysis employing three methodologies—Syuzhet, Bing, and AFINN—uncovers varied conclusions regarding the general sentiment of the texts.
+
+-   The Syuzhet technique yields ratings between -2.50 to 59.70, reflecting a combination of negative and primarily positive attitudes. The median score of 15.40 and mean of 17.25 indicate that the majority of texts convey a pleasant emotion, with some exhibiting notably strong optimism.
+
+-   Bing displays a broader range from -26.000 to 23.000. The negative minimum signifies that certain texts exhibit pronounced negative attitudes, although the median score of 7.000 and mean of 5.084 imply a marginally positive general sentiment, with numerous texts approaching neutrality.
+
+-   The AFINN approach offers ratings ranging from -12.00 to 81.00, indicating both significant negative and very positive attitudes. The median of 24.00 and the mean of 25.77 suggest an overall favorable sentiment. These studies demonstrate a multifaceted sentiment landscape, characterized by differing levels of positivity and negativity across the methodologies.
+
+# Extracting Year Variable leading to months distribution
+
+```{r}
+# Given data: List of file names with potential missing months
+file_names <- c(
+  "MPS-Dec-2005.txt", "MPS-Jul-2005.txt", "MPS-dec-2006.txt", 
+  "MPS-Jan-2006.txt", "MPS-Ju-2006.txt", "MPS-jul-2006.txt", 
+  "MPS-DEC-2007.txt", "MPS-Jan-2007.txt", "MPS-JUL-2007.txt", 
+  "MPS-Jun-2007.txt", "MPS-jan-2008.txt", "MPS-Jul-2008.txt", 
+  "MPS-jun-2008.txt", "MPS-MAY-2008.txt", "MPS-Nov-2008.txt",
+  "MPS-Apr-2009.txt", "MPS-Jan-2009.txt", "MPS-Jul-2009.txt", 
+  "MPS-Jun-2009.txt", "MPS-Mar-2009.txt", "MPS-Nov-2009.txt", 
+  "MPS-Sep-2009.txt", "MPS-Jan-2010.txt", "MPS-Jul-2010.txt", 
+  "MPS-Mar-2010.txt", "MPS-May-2010.txt", "MPS-Nov-2010.txt", 
+  "MPS-Sep-2010.txt", "MPS-Jan-2011.txt", "MPS-Jul-2011.txt", 
+  "MPS-Mar-2011.txt", "MPS-May-2011.txt", "MPS-Nov-2011.txt", 
+  "MPS-Oct-2011.txt", "MPS-Apr-2012.txt", "MPS-Aug-2012.txt", 
+  "MPS-Dec-2012.txt", "MPS-Feb-2012.txt", "MPS-Jun-2012.txt", 
+  "MPS-Oct-2012.txt", "MPS-Apr-2013.txt", "MPS-Feb-2013.txt", 
+  "MPS-Jun-2013.txt", "MPS-Nov-2013.txt", "MPS-Sep-2013.txt", 
+  "MPS-Jan-2014.txt", "MPS-Jul-2014.txt", "MPS-Mar-2014.txt", 
+  "MPS-May-2014.txt", "MPS-Nov-2014.txt", "MPS-Sep-2014.txt", 
+  "MPS-Jan-2015.txt", "MPS-Jul-2015.txt", "MPS-Mar-2015.txt", 
+  "MPS-May-2015.txt", "MPS-Nov-2015.txt", "MPS-Sep-2015.txt", 
+  "MPS-Apr-2016.txt", "MPS-Jan-2016.txt", "MPS-Jul-2016.txt", 
+  "MPS-May-2016.txt", "MPS-Nov-2016.txt", "MPS-Sep-2016.txt", 
+  "MPS-Jan-2017.txt", "MPS-Jul-2017.txt", "MPS-Mar-2017.txt", 
+  "MPS-May-2017.txt", "MPS-Nov-2017.txt", "MPS-Sep-2017.txt", 
+  "MPS-Jan-2018.txt", "MPS-Jul-2018.txt", "MPS-Mar-2018.txt", 
+  "MPS-May-2018.txt", "MPS-Nov-2018.txt", "MPS-Sep-2018.txt", 
+  "MPS-Jan-2019.txt", "MPS-Jul-2019.txt", "MPS-Mar-2019.txt", 
+  "MPS-May-2019.txt", "MPS-Nov-2019.txt", "MPS-Sep-2019.txt", 
+  "MPS-Apr-2020.txt", "MPS-Jan-2020.txt", "MPS-Jun-2020.txt", 
+  "MPS-Mar-2020.txt", "MPS-May-2020.txt", "MPS-Nov-2020.txt", 
+  "MPS-Sep-2020.txt", "MPS-Dec-2021.txt", "MPS-Jan-2021.txt", 
+  "MPS-Jul-2021.txt", "MPS-Mar-2021.txt", "MPS-May-2021.txt", 
+  "MPS-Nov-2021.txt", "MPS-Sep-2021.txt", "MPS-Apr-2022.txt", 
+  "MPS-Aug-2022.txt", "MPS-Jan-2022.txt", "MPS-Jul-2022.txt", 
+  "MPS-Mar-2022.txt", "MPS-May-2022.txt", "MPS-Nov-2022.txt", 
+  "MPS-Oct-2022.txt", "MPS-Apr-2023.txt", "MPS-Dec-2023.txt", 
+  "MPS-Jan-2023.txt", "MPS-Jul-2023.txt", "MPS-Jun-2023.txt", 
+  "MPS-Mar-2023.txt", "MPS-Oct-2023.txt", "MPS-Sep-2023.txt", 
+  "MPS-Apr-2024.txt", "MPS-Jan-2024.txt", "MPS-Jun-2024.txt", 
+  "MPS-Mar-2024.txt"
+)
+
+# Step 1: Extract month and year from file names
+text_data <- data.frame(file_name = file_names) %>%
+  mutate(
+    month = str_extract(file_name, "(?<=-)[A-Za-z]+(?=-)") %>% str_to_title(),
+    year = as.numeric(str_extract(file_name, "\\d{4}"))
+  ) %>%
+  filter(!is.na(month) & !is.na(year)) %>%  # Filter out rows without valid month or year
+  mutate(date_label = paste(month, year, sep = "-"))
+
+# Step 2: Generate a full list of months and years from 2005 to 2024
+years <- 2005:2024
+months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+all_dates <- expand.grid(month = months, year = years) %>%
+  mutate(
+    date_label = paste(month, year, sep = "-"),
+    year = as.numeric(year)  # Ensure year is numeric for sorting
+  )
+
+# Step 3: Merge with existing data to find missing dates
+complete_data <- all_dates %>%
+  left_join(text_data %>% select(date_label, file_name), by = "date_label") %>%
+  arrange(as.numeric(year), match(month, months)) %>%
+  mutate(
+    status = ifelse(is.na(file_name), "Missing", "Present")
+  )
+
+# Step 4: Filter out rows with "Missing" status
+present_data <- complete_data %>% filter(status == "Present")
+
+# View the data without missing dates
+print(present_data)
+
+
+```
+
+# sentiment scores Group by month
+
+```{r, eval=FALSE}
+# Define the correct order for months
+month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Perform sentiment analysis and group by month and year
+sentiment_scores <- get_nrc_sentiment(processed_corpus)
+
+# Combine sentiment scores with year and month, and summarize
+sentiment_by_month_year <- sentiment_scores %>%
+  bind_cols(month = text_data$month, year = text_data$year) %>%  # Ensure you have both month and year
+  mutate(month = factor(month, levels = month_levels, ordered = TRUE)) %>%  # Convert month to ordered factor
+  group_by(year, month) %>%  # Group by both year and month
+  summarize(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+  arrange(year, month)  # Arrange by year and then by month in correct order
+
+# Display the sentiment scores grouped by month and year
+sentiment_by_month_year %>%
+  kable("html", caption = "Sentiment Scores Grouped by Month and Year") %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+```
+
+```{r,eval=FALSE}
+# You can now proceed with sentiment analysis and group by month
+sentiment_scores <- get_nrc_sentiment(processed_corpus)
+ 
+#Combine sentiment scores with year and summarize
+sentiment_by_month <- sentiment_scores %>%
+  bind_cols(month = text_data$month) %>%
+  group_by(month) %>%
+  summarize(across(everything(), mean, na.rm = TRUE))
+
+sentiment_by_month %>%
+  kable("html", caption = "Sentiment Scores Grouped by month") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+The monthly aggregated sentiment scores offer a comprehensive analysis of emotional changes from 2005 to 2024.
+
+\
+In 2005, there were remarkably elevated ratings in anger (34.0) and trust (91.0), indicating substantial emotional involvement, potentially attributable to pivotal events or concerns. Over the years, scores demonstrated a decline in both anger and overall negative sentiments, suggesting a possible transition towards more positive emotional reactions. In 2010, there was a peak in positive emotion, evidenced by a high trust score of 76.67 and significant joy at 29.0, indicating optimism throughout that year. Nevertheless, the years 2011 and 2014 exhibited diminished involvement levels across multiple emotions, indicating potential phases of stagnation or adversity.
+
+The trend from 2013, marked by peak scores in joy (35.8) and trust (87.2), signifies a significant emotional zenith, reflecting a year of optimism. In contrast, the years 2017 and 2019 exhibited diminished good sentiments, accompanied by an increase in anger and negative emotions, suggesting underlying social or economic difficulties.
+
+Recent years, such as 2020 and 2023, exhibit a blend of emotions, characterized by moderate positive ratings alongside a revival of certain negative sentiments. This oscillation may indicate prevailing socio-economic trends, considerably impacting public sentiment. The data demonstrates a multifaceted emotional landscape, indicating the evolution of public mood throughout the years in reaction to diverse environmental circumstances.
+
+## sum of sentiment words across documents
+
+```{r}
+# Perform NRC sentiment analysis and transpose results
+vector.nrc <- get_nrc_sentiment(processed_corpus)
+df.nrc <- data.frame(t(vector.nrc))
+
+# Compute the sum of sentiment words across documents and prepare for plotting
+td_new <- data.frame(rowSums(df.nrc[1:ncol(df.nrc)]))
+names(td_new)[1] <- "count"
+td_new <- cbind("sentiment" = rownames(td_new), td_new)
+rownames(td_new) <- NULL
+```
+
+# Plot
+
+The bar plot shows the distribution of sentiment words from monetary policy reports, revealing a strong emphasis on **negative sentiment**, indicating a focus on economic risks and challenges such as inflation or market instability. However, **trust** also features prominently, reflecting confidence in policy measures and the institutions managing the economy. **Fear** and **anticipation** are present, highlighting concerns about potential downturns alongside a forward-looking perspective. While **positive sentiment** appears, it is less frequent than negative, suggesting that optimism is cautious. Other emotions, such as **joy**, **sadness**, and **surprise**, are less prominent, in line with the formal and objective nature of these reports.
+
+```{r}
+# new added today
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# Assuming 'sentiment_data' contains sentiment scores for each category (Positive, Negative, Neutral)
+sentiment_long <- sentiment_data %>%
+  pivot_longer(cols = everything(),  # Reshape data into long format
+               names_to = "Sentiment",  # New column for sentiment type
+               values_to = "Score")  # New column for sentiment score
+
+# Plot the sentiment analysis with ggplot2
+ggplot(sentiment_long, aes(x = Sentiment, y = Score, fill = Sentiment)) +
+  geom_bar(stat = "identity") +   # Bar plot with actual score values
+  labs(
+    title = "Sentiment Analysis of Monetary Policy Statements",  # Title related to monetary policy
+    x = "Sentiment Type",         # Label for x-axis
+    y = "Sentiment Score",        # Label for y-axis
+    fill = "Sentiment"            # Legend title
+  ) +
+  scale_fill_manual(values = c("Positive" = "green", "Negative" = "red", "Neutral" = "grey")) +  # Custom colors
+  theme_minimal() +                              # Clean theme
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),   # Rotate x-axis labels for readability
+    axis.title = element_text(face = "bold"),            # Bold axis titles
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14)  # Center and style title
+  )
+
+```
+
+```{r}
+# Plot the count of words associated with each sentiment using a bar plot
+quickplot(sentiment, data = td_new, weight = count, geom = "bar", fill = sentiment, ylab = "Count") + 
+  ggtitle("Sentiment Word Counts of monetory policy Statements")
+
+
+
+```
+
+## plot
+
+```{r}
+# Define the correct month order
+month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Perform sentiment analysis
+sentiment_scores <- get_nrc_sentiment(processed_corpus)
+
+# Combine sentiment scores with 'year' and 'month' from 'text_data'
+sentiment_by_month_long <- sentiment_scores %>%
+  bind_cols(year = text_data$year, month = text_data$month) %>%  # Ensure 'text_data' has 'year' and 'month'
+  pivot_longer(
+    cols = -c(year, month),
+    names_to = "sentiment",
+    values_to = "score"
+  )
+
+# Ensure 'month' is an ordered factor for proper plotting
+sentiment_by_month_long <- sentiment_by_month_long %>%
+  mutate(month = factor(month, levels = month_levels, ordered = TRUE))
+
+# Display or proceed with further analysis
+print(sentiment_by_month_long)
+
+```
+
+```{r}
+# Place this at the start of the problematic chunk to ensure it is in scope
+month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+# Now create the summary
+monthly_sentiment_summary <- sentiment_by_month_long %>%
+  mutate(month = factor(month, levels = month_levels, ordered = TRUE)) %>%
+  group_by(month, sentiment) %>%
+  summarize(avg_score = mean(score, na.rm = TRUE), .groups = "drop")
+
+# Plot the aggregated sentiment scores by month
+sentiment_plot <- ggplot(monthly_sentiment_summary, aes(x = month, y = avg_score, color = sentiment, group = sentiment)) +
+  geom_line(size = 1) +
+  labs(title = "Average Monthly Sentiment Trends", x = "Month", y = "Average Sentiment Score") +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+# Display the plot
+print(sentiment_plot)
+
+```
+
+-   The line plot illustrates the variation in sentiment scores over time (grouped by months) from 2005 to 2023, based on monetary policy reports. The dominant sentiment throughout this period is **negative**, represented by the highest peaks, especially around 2005, 2010, and 2015, which could correspond to significant economic or financial events that heightened concerns. This suggests that during these periods, monetary policy reports reflected a higher degree of caution or pessimism regarding economic conditions.
+
+    Other sentiments such as **trust**, **anticipation**, and **fear** follow a relatively consistent pattern over time, with **trust** being the second most prominent sentiment, which aligns with the necessity of maintaining confidence in the policy measures and economic stability. Notable fluctuations in **fear** and **anticipation** may reflect periods of uncertainty and forward-looking considerations in economic projections.
+
+    **Positive sentiment**, although present, remains lower compared to negative sentiment, highlighting that optimism in the reports was generally more subdued. Overall, the graph suggests that monetary policy communications are responsive to macroeconomic conditions, with variations in sentiment reflecting the broader economic environment over the years.
+
+# Document term matrix
+
+```{r}
+# Create a Document-Term Matrix (DTM)
+dtm <- DocumentTermMatrix(processed_corpus)
+
+# Remove sparse terms
+dtm <- removeSparseTerms(dtm, 0.1)
+
+# Remove empty documents
+empty_docs <- row_sums(dtm) == 0
+dtm <- dtm[!empty_docs, ]
+inspect(dtm)
+
+
+
+```
+
+# TDM
+
+```{r}
+TDM <- TermDocumentMatrix(processed_corpus)
+m <- as.matrix(TDM)
+v <- sort(rowSums(m), decreasing = TRUE)
+d <- data.frame(frequency=v)
+d <- data.frame(word=names(v), frequency=v)
+head(d,20)
+```
+
+## Frequent Terms
+
+```{r}
+freq <- findFreqTerms(TDM,lowfreq = 10)
+freq %>% head(50)
+```
+
+## Bar plot of most frequent terms
+
+```{r}
+# Generate a palette with 10 different colors
+colors <- brewer.pal(10, "Set3")
+
+# Create the bar plot with the new color palette
+barplot(d[1:10,]$freq, las=2, names.arg = d[1:10,]$word,
+        col = colors, main = "Mnoetory policy reports",
+        ylab = "Word frequencies")
+```
+
+## Word Cloud
+
+```{r}
+# Ensure the wordcloud2 package is installed
+if (!require("wordcloud2")) {
+  install.packages("wordcloud2")
+}
+
+# Ensure the RColorBrewer package is installed for color palettes
+if (!require("RColorBrewer")) {
+  install.packages("RColorBrewer")
+}
+
+# Convert the encoding of the 'word' column to UTF-8
+d$word <- iconv(d$word, from = "latin1", to = "UTF-8")
+
+# Alternatively, remove non-UTF-8 characters
+d$word <- iconv(d$word, from = "latin1", to = "UTF-8", sub = "")
+
+# Set a random seed for reproducibility
+set.seed(2024)
+
+# Generate the Wordcloud2 word cloud
+wordcloud2(
+  data = d, 
+  size = 0.5,                    # Adjust the size of the words
+  minSize = 0.5,                 # Minimum size of the words
+  color = brewer.pal(8, "Set2"), # Use a color palette from RColorBrewer
+  backgroundColor = "white",     # Set the background color
+  shape = 'circle'               # Shape of the word cloud (circle, star, etc.)
+)
+
+```
+
+```{r}
+# Convert the encoding of the 'word' column to UTF-8
+d$word <- iconv(d$word, from = "latin1", to = "UTF-8")
+
+# Alternatively, remove non-UTF-8 characters
+d$word <- iconv(d$word, from = "latin1", to = "UTF-8", sub = "")
+
+# Set a random seed for reproducibility
+set.seed(2024)
+
+# Generate the word cloud using wordcloud2
+words <- d$word     # Column with words
+frequencies <- d$freq # Column with word frequencies
+
+# Generate the word cloud
+wordcloud(words = words,
+          freq = frequencies,
+          scale = c(3, 0.5),      # Reduced size range
+          max.words = 200,        # Limit word count
+          min.freq = 2,           # Include only more frequent words
+          random.order = FALSE,    # Distribute words randomly
+          rot.per = 0.1,          # Decrease rotation
+          colors = brewer.pal(8, "Set2")  # Use a different color palette
+)
+
+```
+
+# Customize Dictionary (Lougran_macdonald)
+
+The Loughran-McDonald attitude dictionary is tailored for financial and business contexts, emphasizing the identification of terms pertinent to monetary policy discourse. It classifies terminology according to its conventional application in this field, with a specific focus on words that may signify risks, uncertainties, or possible adverse consequences associated with economic conditions. Through sentiment analysis, the dictionary elucidates the subtleties of financial language, thereby improving comprehension of how monetary policy announcements may affect market perceptions and decision-making.
+
+```{r,eval=FALSE}
+# Load the Loughran-McDonald dictionary CSV
+loughran_macdonald <- read.csv("Loughran-McDonald.csv", stringsAsFactors = FALSE)
+
+# Inspect the first few rows to understand the structure
+head(loughran_macdonald)
+
+# Assuming the structure is:
+# Column 1: Words
+# Column 2: Sentiment Category
+
+# Filter for Positive and Negative words
+positive_words <- loughran_macdonald %>%
+  filter(Positive > 0) %>%   # 'Positive' column value greater than 0 indicates positive words
+  select(Word) %>%
+  pull()
+positive_words %>% head()
+
+# Filter for Negative words
+negative_words <- loughran_macdonald %>%
+  filter(Negative > 0) %>%   
+  select(Word) %>%
+  pull()
+negative_words %>% head()
+# Save the words to separate CSV files
+write.csv(positive_words, "positive.csv", row.names = FALSE)
+write.csv(negative_words, "negative.csv", row.names = FALSE)
+
+# Ensure the dictionaries are in lowercase and stemmed
+dictionary.positive <- tolower(positive_words)
+dictionary.positive <- wordStem(dictionary.positive)
+
+dictionary.negative <- tolower(negative_words)
+dictionary.negative <- wordStem(dictionary.negative)
+
+dictionary.positive %>% head()
+dictionary.negative %>% head()
+
+# Remove overlapping words between positive and negative dictionaries
+overlapping_words <- intersect(dictionary.positive, dictionary.negative)
+dictionary.positive <- setdiff(dictionary.positive, overlapping_words)
+dictionary.negative <- setdiff(dictionary.negative, overlapping_words)
+
+cat("Overlapping words removed:", length(overlapping_words), "\n")
+processed_corpus <- unlist(tokens)
+# Assume `processed_corpus_words` is your list of words from the corpus
+# Ensure the processed corpus words are consistent with the dictionaries
+processed_corpus_words <- tolower(processed_corpus)
+processed_corpus_words <- wordStem(processed_corpus)
+
+
+
+# Match words in the processed corpus against the positive and negative dictionaries
+positive_matches <- match(processed_corpus_words, dictionary.positive, nomatch=0)
+negative_matches <- match(processed_corpus_words, dictionary.negative, nomatch=0)
+
+
+# Count the number of positive and negative matches (non-zero values)
+positive_count <- sum(positive_matches > 0)
+negative_count <- sum(negative_matches > 0)
+
+positive_count
+negative_count
+# Calculate the sentiment score
+document_score <- positive_count - negative_count
+
+# Output results
+cat("Positive word count:", positive_count, "\n")
+cat("Negative word count:", negative_count, "\n")
+cat("Document sentiment score:", document_score, "\n")
+```
+
+```{r,eval=FALSE}
+# Sentiment counts from your analysis
+positive_count <- 6021
+negative_count <- 10799
+document_score <- positive_count - negative_count
+
+# Create a data frame for plotting
+sentiment_data <- data.frame(
+  Sentiment = c("Positive", "Negative"),
+  Count = c(positive_count, negative_count)
+)
+
+# Create a pie chart
+ggplot(sentiment_data, aes(x = "", y = Count, fill = Sentiment)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  theme_void() +
+  labs(title = "Sentiment Analysis Results") +
+  scale_fill_manual(values = c("Positive" = "white", "Negative" = "red")) +
+  geom_text(aes(label = paste0(Count, " (", round(Count / sum(Count) * 100, 1), "%)")),
+            position = position_stack(vjust = 0.5))
+```
+
+# customize topic modeling Gibbs
+
+Topic modeling: technique used in text analysis to **uncover the hidden thematic structure in the text corpus**. **Latent Dirichlet Allocation (LDA)** is the most common method for topic modeling, *which assumes that document are mixture of topics ,and topics are a mixture of words*. The main challenge in LDA is to find the hidden structure of the document meaning numbers of topics in documents.
+
+**Gibbs Sampling is a Markov Chain Monte Carlo (MCMC) method** used to estimate the **posterior (behind) distribution** of hidden variables in LDA model. *GIBBS sampling can handle complex distribution ,making it a robust method for estimating topic distributions in diverse datasets*.
+
+Customized topic modeling using Gibbs sampling involves adapting the standard LDA model by **fine-tuning** its parameters and incorporating *domain specific knowledge*. it allows us to *extract more relevent and interpretable topics from given text corpus*.
+
+```{r,eval=FALSE}
+library(topicmodels)
+
+# Example: Fit LDA model (you should replace dtm with your actual document-term matrix)
+lda_model <- LDA(dtm, k = 10)  # k = 10 for example, choose the number of topics
+
+# Check the model class to make sure it's correct
+class(lda_model)
+
+```
+
+```{r,eval=FALSE}
+# Find the optimal number of topics
+result <- FindTopicsNumber(
+  dtm,
+  topics = seq(2, 20, by = 1),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 1234),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+
+# Plot the metrics to help decide on the number of topics
+FindTopicsNumber_plot(result)
+```
+
+# LDA
+
+```{r}
+# Fit the LDA model with 14 topics
+lda_model <- LDA(dtm, k = 8, method = "Gibbs", control = list(alpha = 0.1, seed = 1234))
+```
+
+```{r,eval=FALSE}
+# Extract phi (term-topic distribution) and theta (document-topic distribution) matrices
+phi <- exp(lda_model@beta)  # Term-topic distribution
+theta <- lda_model@gamma    # Document-topic distribution
+
+json_data <- createJSON(phi = exp(lda_model@beta), 
+                        theta = lda_model@gamma, 
+                        doc.length = rowSums(as.matrix(dtm)), 
+                        vocab = colnames(dtm), 
+                        term.frequency = colSums(as.matrix(dtm)))
+
+serVis(json_data)
+```
+
+## LDA with visualisation
+
+```{r}
+beta_topics <- tidy(lda_model, matrix = "beta")
+
+# Find the top terms for each topic
+beta_top_terms <- beta_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 10) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+beta_top_terms 
+```
+
+## plotting each terms
+
+```{r}
+# Load required libraries
+library(knitr)
+library(kableExtra)
+
+# Step 1: Filter the terms for topics 1-4 and topics 5-8
+topics_1_4 <- beta_top_terms %>% filter(topic %in% 1:4)
+topics_5_8 <- beta_top_terms %>% filter(topic %in% 5:8)
+
+# Step 2: Create tables for topics 1-4
+topics_1_4_table <- topics_1_4 %>%
+  arrange(topic, desc(beta)) %>%  # Sort by topic and beta values
+  select(topic, term, beta)  # Select relevant columns
+
+# Display the table for topics 1-4
+topics_1_4_table %>%
+  kable("html", caption = "Top Terms by Topic (Topics 1-4)") %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+# Step 3: Create tables for topics 5-8
+topics_5_8_table <- topics_5_8 %>%
+  arrange(topic, desc(beta)) %>%  # Sort by topic and beta values
+  select(topic, term, beta)  # Select relevant columns
+
+# Display the table for topics 5-8
+topics_5_8_table %>%
+  kable("html", caption = "Top Terms by Topic (Topics 5-8)") %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+```
+
+```{r ,eval=FALSE}
+# Split the topics into two groups: topics 1-4 and topics 5-8
+topics_1_4 <- beta_top_terms %>% filter(topic %in% 1:4)
+topics_5_8 <- beta_top_terms %>% filter(topic %in% 5:8)
+
+# Plot for topics 1-4
+plot_1_4 <- topics_1_4 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 2) +  # 2 columns for better spacing
+  scale_y_reordered() +
+  labs(
+    title = "Top Terms by Topic (Topics 1-4)",
+    subtitle = "Visualizing the top terms within each topic based on beta values",
+    x = "Beta Value",
+    y = "Terms",
+    caption = "Data Source: Economic Update"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(face = "bold"),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.caption = element_text(hjust = 0)
+  ) +
+  scale_fill_brewer(palette = "Set3")
+
+# Plot for topics 5-8
+plot_5_8 <- topics_5_8 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 2) +  # 2 columns for better spacing
+  scale_y_reordered() +
+  labs(
+    title = "Top Terms by Topic (Topics 5-8)",
+    subtitle = "Visualizing the top terms within each topic based on beta values",
+    x = "Beta Value",
+    y = "Terms",
+    caption = "Data Source: Economic Update"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(face = "bold"),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.caption = element_text(hjust = 0)
+  ) +
+  scale_fill_brewer(palette = "Set3")
+
+# Display the plots
+plot_1_4
+plot_5_8
+
+```
+
+## Extract Gamma values
+
+```{r}
+# Load required libraries
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(tidyr)
+
+# Step 1: Create a data frame from the gamma matrix
+gamma_df <- as.data.frame(lda_model@gamma)
+
+# Step 2: Add a column with document IDs for reference
+gamma_df <- cbind(Document = seq_len(nrow(gamma_df)), gamma_df)
+
+# Step 3: Optionally rename topic columns for clarity
+colnames(gamma_df)[-1] <- paste0("Topic_", seq_len(ncol(gamma_df) - 1))
+
+# Step 4: Display the gamma values in table format
+gamma_df %>%
+  kable("html", caption = "Document-Topic Distribution (Gamma Values)") %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+```
+
+```{r,eval=FALSE}
+# Create a data frame from the gamma matrix
+gamma_df <- as.data.frame(lda_model@gamma)
+
+# Add a column with document IDs for reference
+gamma_df <- cbind(Document = seq_len(nrow(gamma_df)), gamma_df)
+
+# Melt the data frame for easy plotting
+gamma_long <- gamma_df %>%
+  pivot_longer(cols = -Document, names_to = "Topic", values_to = "Gamma")
+
+# Convert Topic to a factor for better plotting
+gamma_long$Topic <- as.factor(gamma_long$Topic)
+
+# Plot the document-topic distribution
+ggplot(gamma_long, aes(x = Document, y = Gamma, fill = Topic)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Document-Topic Distribution (Gamma values)",
+       x = "Document",
+       y = "Gamma Value",
+       fill = "Topic") +
+  theme_minimal()
+```
+
+```{r}
+# Create a heatmap of the gamma values
+gamma_matrix <- lda_model@gamma
+
+# Create a heatmap
+pheatmap(gamma_matrix,
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         scale = "row",
+         main = "Heatmap of Document-Topic Distributions (Gamma Values)",
+         color = colorRampPalette(c("blue", "white", "red"))(50))
+
+```
+
+## Distribution of Topics Across All values:
+
+-   **Topic Dominance:** Some topics (e.g., V11, V12) have higher median gamma values, suggesting that they are more prevalent across the chapters.
+
+-   **Topic Variation:** Other topics (e.g., V1, V2, V3, V4) show more variation in their gamma values, indicating that their prevalence across chapters is less consistent.
+
+-   **Outlier Analysis:** The individual data points (dots) represent the gamma values for specific chapters. Outliers, which are data points that deviate significantly from the overall distribution, can be observed for some topics. These outliers might indicate chapters with unusual topic distributions.
+
+```{r}
+# Ensure the LDA model has been run and gamma matrix extracted
+gamma_df <- as.data.frame(lda_model@gamma)
+gamma_df <- cbind(Document = seq_len(nrow(gamma_df)), gamma_df)
+
+# Create a long format data frame
+gamma_long <- gamma_df %>%
+  pivot_longer(cols = -Document, names_to = "Topic", values_to = "Gamma")
+
+gamma_long$Topic <- as.factor(gamma_long$Topic)
+
+# Now proceed with the plotting code
+gamma_long$Topic <- factor(gamma_long$Topic, levels = paste0("V", 1:14))  # Adjust number of topics as needed
+
+ggplot(gamma_long, aes(x = Topic, y = Gamma, fill = Topic)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Topics Across All documents",
+       x = "Topic",
+       y = "Gamma Value (Topic Proportion)") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  scale_y_continuous(limits = c(0, 0.4))
+
+```
+
+# RIDGE And LASSO regression
+
+RIDGE and LASSO regression are techniques employed to mitigate overfitting in regression models. They incorporate a penalty element into the loss function that reduces the coefficients towards zero. This mitigates the model's complexity and prevents overfitting to the training data, which can result in worse performance on novel data.\
+\
+Principal distinctions between RIDGE and LASSO:\
+\
+The penalty phrase is utilized in both ways, albeit with differing characteristics. RIDGE employs an L2 penalty (squared sum of coefficients), whereas LASSO utilizes an L1 penalty (absolute sum of coefficients).\
+Coefficient Shrinkage: RIDGE uniformly reduces all coefficients towards zero, but LASSO can nullify certain coefficients entirely, facilitating feature selection.\
+Regarding the plots you presented:\
+\
+The tuning parameter (λ) presumably regulates the intensity of the regularization penalty. An increased λ would lead to enhanced regularization and more pronounced coefficient reduction.\
+The U-shaped curve in the initial plot is a prevalent pattern identified when employing regularization techniques. This signifies a trade-off between model complexity, governed by λ, and performance.\
+The error bars probably indicate the uncertainty related to the model's performance as a result of regularization.
+
+## Convert the Document-Term Matrix (DTM) to a sparse matrix format
+
+## for fig (1)
+
+1.  **Increasing Error:** Unlike the U-shaped curve observed in the previous plot, this plot shows a general upward trend in the Mean-Squared Error as the logarithm of λ increases. This suggests that increasing the complexity of the model (by decreasing λ) does not lead to improved performance.
+
+2.  **Error Bars:** The vertical lines (error bars) likely represent the standard error or confidence intervals associated with the MSE values. These indicate the uncertainty in the estimated MSE for each value of log(λ).
+
+3.  **Model Complexity:** The tuning parameter (λ) often controls the model's complexity. A smaller λ typically corresponds to a more complex model, while a larger λ results in a simpler model.
+
+**Interpretation:**
+
+-   **Model Selection:** The plot suggests that increasing model complexity (decreasing λ) does not improve performance in this case. The simplest model (largest λ) might be the best choice.
+
+-   **Underfitting:** The lack of a U-shaped curve indicates that the model is likely underfitting, meaning it is too simple to capture the underlying patterns in the data.
+
+-   **Data Complexity:** The behavior of the plot might be influenced by the complexity of the data. If the data is highly nonlinear or contains many features, a more complex model might be necessary to achieve good performance.
+
+    ## for figure (2)
+
+-   **U-Shaped Curve:** The plot exhibits a classic U-shaped curve, which is a common pattern in model selection. This indicates that as the tuning parameter (λ) increases or decreases, the model's performance initially improves, reaches a minimum point, and then deteriorates.
+
+-   **Optimal Tuning Parameter:** The point where the curve reaches its minimum represents the optimal value of the tuning parameter. In this case, it seems to be around log(λ) = -1.5.
+
+-   **Error Bars:** The vertical lines (error bars) likely represent the standard error or confidence intervals associated with the MSE values. These indicate the uncertainty in the estimated MSE for each value of log(λ).
+
+-   **Model Complexity:** The tuning parameter (λ) often controls the model's complexity. A smaller λ typically corresponds to a more complex model, while a larger λ results in a simpler model. Therefore, the U-shaped curve suggests that there is a trade-off between model complexity and performance.
+
+**Interpretation:**
+
+-   **Model Selection:** The plot helps to identify the optimal value of the tuning parameter that minimizes the model's error. This is crucial for selecting the best-performing model from a family of models.
+
+-   **Overfitting and Underfitting:** The U-shaped curve demonstrates the concept of overfitting and underfitting. A very small λ (complex model) might lead to overfitting, where the model fits the training data too closely but performs poorly on new data. A very large λ (simple model) might lead to underfitting, where the model is too simple to capture the underlying patterns in the data.
+
+-   **Model Complexity:** The plot provides insights into the relationship between model complexity and performance. It helps to determine the appropriate level of complexity for the given task.
+
+    ```{r}
+    # Load necessary libraries
+    library(glmnet)
+    library(Matrix)
+    library(ggplot2)
+
+    library(caret)
+    library(tm)
+    library(vip)  # For variable importance plots
+    library(dplyr) # For data manipulation
+
+    # Define a function for performing an advanced textual analysis workflow
+    perform_advanced_textual_analysis <- function(dtm, response_variable) {
+      # Step 1: Preprocess the Document-Term Matrix (DTM)
+      cat("\nStep 1: Preprocessing DTM...\n")
+      
+      # Remove sparse terms (e.g., keep terms appearing in at least 5% of documents)
+      dtm <- removeSparseTerms(dtm, 0.95)
+      
+      # Convert the DTM to a matrix and then to a sparse matrix
+      dtm_matrix <- as.matrix(dtm)
+      sparse_dtm <- Matrix(dtm_matrix, sparse = TRUE)
+
+      # Step 2: Normalize the response variable
+      cat("\nStep 2: Normalizing response variable...\n")
+      response_variable <- scale(response_variable)
+
+      # Step 3: Train-Test Split for Out-of-Sample Evaluation
+      cat("\nStep 3: Splitting data into train and test sets...\n")
+      set.seed(2024)
+      train_indices <- createDataPartition(response_variable, p = 0.8, list = FALSE)
+      train_dtm <- sparse_dtm[train_indices, ]
+      test_dtm <- sparse_dtm[-train_indices, ]
+      train_response <- response_variable[train_indices]
+      test_response <- response_variable[-train_indices]
+
+      # Step 4: Perform Cross-Validation for Ridge and Lasso
+      cat("\nStep 4: Performing cross-validation...\n")
+      cv_ridge <- cv.glmnet(train_dtm, train_response, alpha = 0, standardize = TRUE, nfolds = 10, parallel = TRUE)
+      cv_lasso <- cv.glmnet(train_dtm, train_response, alpha = 1, standardize = TRUE, nfolds = 10, parallel = TRUE)
+      
+      # Extract the best lambda values
+      best_lambda_ridge <- cv_ridge$lambda.min
+      best_lambda_lasso <- cv_lasso$lambda.min
+
+      # Step 5: Fit Final Models
+      cat("\nStep 5: Fitting final Ridge and Lasso models...\n")
+      ridge_model <- glmnet(train_dtm, train_response, alpha = 0, lambda = best_lambda_ridge)
+      lasso_model <- glmnet(train_dtm, train_response, alpha = 1, lambda = best_lambda_lasso)
+
+      # Step 6: Evaluate Models on Test Data
+      cat("\nStep 6: Evaluating models on test data...\n")
+      ridge_predictions <- predict(ridge_model, test_dtm)
+      lasso_predictions <- predict(lasso_model, test_dtm)
+      
+      ridge_mse_test <- mean((ridge_predictions - test_response)^2)
+      lasso_mse_test <- mean((lasso_predictions - test_response)^2)
+      
+      cat("\nOut-of-Sample Mean Squared Error (MSE):\n")
+      mse_table <- data.frame(
+        Model = c("Ridge", "Lasso"),
+        Train_MSE = c(cv_ridge$cvm[cv_ridge$lambda == best_lambda_ridge], 
+                      cv_lasso$cvm[cv_lasso$lambda == best_lambda_lasso]),
+        Test_MSE = c(ridge_mse_test, lasso_mse_test)
+      )
+      print(mse_table)
+
+      # Step 7: Feature Importance Analysis
+      cat("\nStep 7: Analyzing feature importance...\n")
+      ridge_coef <- as.data.frame(as.matrix(coef(ridge_model)))
+      lasso_coef <- as.data.frame(as.matrix(coef(lasso_model)))
+      
+      ridge_coef <- ridge_coef %>% 
+        rownames_to_column("Feature") %>% 
+        rename(Coefficient = s0) %>% 
+        arrange(desc(abs(Coefficient))) %>% 
+        head(10)
+
+      lasso_coef <- lasso_coef %>% 
+        rownames_to_column("Feature") %>% 
+        rename(Coefficient = s0) %>% 
+        arrange(desc(abs(Coefficient))) %>% 
+        head(10)
+
+      cat("\nTop 10 Ridge Coefficients:\n")
+      print(ridge_coef)
+      cat("\nTop 10 Lasso Coefficients:\n")
+      print(lasso_coef)
+
+      # Plot feature importance
+      ridge_importance_plot <- ggplot(ridge_coef, aes(x = reorder(Feature, Coefficient), y = Coefficient)) +
+        geom_bar(stat = "identity", fill = "steelblue") +
+        coord_flip() +
+        labs(title = "Top 10 Ridge Features", x = "Feature", y = "Coefficient") +
+        theme_minimal()
+
+      lasso_importance_plot <- ggplot(lasso_coef, aes(x = reorder(Feature, Coefficient), y = Coefficient)) +
+        geom_bar(stat = "identity", fill = "darkorange") +
+        coord_flip() +
+        labs(title = "Top 10 Lasso Features", x = "Feature", y = "Coefficient") +
+        theme_minimal()
+
+      # Step 8: Dimensionality Reduction
+      cat("\nStep 8: Applying dimensionality reduction (PCA)...\n")
+      pca_result <- prcomp(dtm_matrix, center = TRUE, scale. = TRUE)
+      explained_variance <- summary(pca_result)$importance[2, 1:10]
+      explained_variance_plot <- ggplot(data.frame(PC = 1:10, Variance = explained_variance), aes(x = PC, y = Variance)) +
+        geom_bar(stat = "identity", fill = "purple") +
+        labs(title = "Explained Variance by Top 10 Principal Components", x = "Principal Component", y = "Proportion of Variance") +
+        theme_minimal()
+
+      # Return results as a list
+      return(list(
+        Ridge_Coefficients = ridge_coef,
+        Lasso_Coefficients = lasso_coef,
+        MSE_Comparison = mse_table,
+        Ridge_Importance_Plot = ridge_importance_plot,
+        Lasso_Importance_Plot = lasso_importance_plot,
+        PCA_Variance_Plot = explained_variance_plot,
+        PCA_Result = pca_result
+      ))
+    }
+
+    # Example Usage:
+    # Ensure dtm and response_variable are defined beforehand
+    # dtm <- YOUR_DOCUMENT_TERM_MATRIX
+    # response_variable <- YOUR_RESPONSE_VARIABLE
+
+    # Perform the analysis
+    results <- perform_advanced_textual_analysis(dtm, syuzhet_vector)
+
+    # Display results
+    cat("\nMSE Comparison Table:\n")
+    print(results$MSE_Comparison)
+
+    # Plot Ridge and Lasso feature importance
+    print(results$Ridge_Importance_Plot)
+    print(results$Lasso_Importance_Plot)
+
+    # Plot PCA explained variance
+    print(results$PCA_Variance_Plot)
+
+    ```
+
+-   
+
+    ```{r}
+    # Load necessary libraries
+    library(tm)
+    library(glmnet)
+    library(caret)
+    library(tibble)
+    library(knitr)
+    library(kableExtra)
+    library(dplyr)
+
+    # Step 1: Define the correct order for months
+    month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+    # Step 2: Perform sentiment analysis and group by month and year
+    sentiment_scores <- get_nrc_sentiment(processed_corpus)
+
+    # Combine sentiment scores with month and year
+    sentiment_by_month_year <- sentiment_scores %>%
+      bind_cols(month = text_data$month, year = text_data$year) %>% 
+      mutate(month = factor(month, levels = month_levels, ordered = TRUE)) %>%
+      group_by(year, month) %>%
+      summarize(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+      arrange(year, month)
+
+    # Step 3: Prepare DTM and aggregate by month and year
+    dtm_matrix <- as.matrix(DocumentTermMatrix(Corpus(VectorSource(processed_corpus)), 
+                                               control = list(
+                                                 tolower = TRUE,
+                                                 removePunctuation = TRUE,
+                                                 removeNumbers = TRUE,
+                                                 stopwords = TRUE)))
+
+    dtm_aggregated <- as.data.frame(dtm_matrix) %>%
+      bind_cols(month = text_data$month, year = text_data$year) %>% 
+      mutate(month = factor(month, levels = month_levels, ordered = TRUE)) %>%
+      group_by(year, month) %>%
+      summarize(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+      arrange(year, month)
+
+    # Step 4: Ensure predictors and response align
+    x <- as.matrix(dtm_aggregated[, -c(1, 2)])  # Exclude year and month columns
+    y <- sentiment_by_month_year$positive  # Use positive sentiment as the response variable
+
+    # Step 5: Train-test split
+    set.seed(42)
+    train_index <- createDataPartition(y, p = 0.8, list = FALSE)
+    x_train <- x[train_index, ]
+    y_train <- y[train_index]
+    x_test <- x[-train_index, ]
+    y_test <- y[-train_index]
+
+    # Step 6: Fit Ridge Regression model
+    lambda_seq <- 10^seq(2, -3, by = -0.1)
+    ridge_model <- cv.glmnet(x_train, y_train, alpha = 0, lambda = lambda_seq)
+
+    # Best lambda
+    best_lambda <- ridge_model$lambda.min
+
+    # Step 7: Predictions and evaluation
+    ridge_pred <- predict(ridge_model, s = best_lambda, newx = x_test)
+    mse <- mean((ridge_pred - y_test)^2)
+    r2 <- 1 - (sum((ridge_pred - y_test)^2) / sum((y_test - mean(y_test))^2))
+
+    # Step 8: Feature importance
+    coefficients <- as.matrix(coef(ridge_model, s = best_lambda))
+    feature_importance <- tibble(
+      Feature = rownames(coefficients),
+      Coefficient = as.vector(coefficients)
+    ) %>% arrange(desc(abs(Coefficient)))
+
+    # Step 9: Display results
+    print(paste("Mean Squared Error:", round(mse, 4)))
+    print(paste("R-squared:", round(r2, 4)))
+
+    cat("\nTop Features by Importance:\n")
+    print(head(feature_importance))
+
+    cat("\nPredictions:\n")
+    for (i in seq_along(ridge_pred)) {
+      cat(sprintf("Month %d: Predicted Value = %.2f\n", i, ridge_pred[i]))
+    }
+
+    # Step 10: Display grouped sentiment scores
+    sentiment_by_month_year %>%
+      kable("html", caption = "Sentiment Scores Grouped by Month and Year") %>%
+      kable_styling(full_width = FALSE, position = "center")
+
+    ```
+
+    ## 1. **Model Evaluation**
+
+    ```{r}
+    # Split data into training and test sets (80% train, 20% test)
+    set.seed(2024)
+    train_index <- createDataPartition(response_variable, p = 0.8, list = FALSE)
+    train_data <- sparse_dtm[train_index, ]
+    test_data <- sparse_dtm[-train_index, ]
+    train_response <- response_variable[train_index]
+    test_response <- response_variable[-train_index]
+
+    # Make predictions on test data using Ridge and Lasso models
+    ridge_preds <- predict(ridge_model, s = best_lambda_ridge, newx = test_data)
+    lasso_preds <- predict(lasso_model, s = best_lambda_lasso, newx = test_data)
+
+    # Calculate performance metrics: MAE, RMSE, R-squared
+    ridge_mae <- mean(abs(ridge_preds - test_response))
+    lasso_mae <- mean(abs(lasso_preds - test_response))
+
+    ridge_rmse <- sqrt(mean((ridge_preds - test_response)^2))
+    lasso_rmse <- sqrt(mean((lasso_preds - test_response)^2))
+
+    ridge_r_squared <- 1 - sum((ridge_preds - test_response)^2) / sum((test_response - mean(test_response))^2)
+    lasso_r_squared <- 1 - sum((lasso_preds - test_response)^2) / sum((test_response - mean(test_response))^2)
+
+    # Print the metrics
+    cat("Ridge Regression MAE:", ridge_mae, "RMSE:", ridge_rmse, "R-squared:", ridge_r_squared, "\n")
+    cat("Lasso Regression MAE:", lasso_mae, "RMSE:", lasso_rmse, "R-squared:", lasso_r_squared, "\n")
+
+    ```
+
+    ## 2. **Visualizing Model Performance:**
+
+    ```{r}
+    # Create a dataframe for visualization
+    results <- data.frame(
+      Actual = test_response,
+      Ridge_Predicted = ridge_preds,
+      Lasso_Predicted = lasso_preds
+    )
+
+    # Plot for Ridge regression predictions vs actual
+    ggplot(results, aes(x = Actual, y = Ridge_Predicted)) +
+      geom_point(color = "blue") +
+      geom_abline(intercept = 0, slope = 1, color = "red") +
+      labs(title = "Ridge Regression: Actual vs Predicted", x = "Actual", y = "Predicted") +
+      theme_minimal()
+
+    # Plot for Lasso regression predictions vs actual
+    ggplot(results, aes(x = Actual, y = Lasso_Predicted)) +
+      geom_point(color = "green") +
+      geom_abline(intercept = 0, slope = 1, color = "red") +
+      labs(title = "Lasso Regression: Actual vs Predicted", x = "Actual", y = "Predicted") +
+      theme_minimal()
+
+    ```
+
+    Coefficient Path Plots:
+
+    ```{r}
+
+    # Plotting coefficient paths for Ridge and Lasso
+    plot(ridge_model, xvar = "lambda", label = TRUE, main = "Ridge Coefficient Path")
+    plot(lasso_model, xvar = "lambda", label = TRUE, main = "Lasso Coefficient Path")
+
+    ```
+
+    4\. **Hyperparameter Tuning and Performance Optimization**
+
+    ```{r}
+    # ElasticNet Regularization (combines Ridge and Lasso)
+    set.seed(2024)
+    cv_elasticnet <- cv.glmnet(sparse_dtm, response_variable, alpha = 0.5, standardize = TRUE, nfolds = 10)
+
+    # Extract the best lambda and fit the final model
+    best_lambda_elasticnet <- cv_elasticnet$lambda.min
+    elasticnet_model <- glmnet(sparse_dtm, response_variable, alpha = 0.5, lambda = best_lambda_elasticnet)
+
+    # Print coefficients of ElasticNet
+    cat("ElasticNet Coefficients:\n")
+    print(coef(elasticnet_model))
+
+    # Plot ElasticNet Cross-Validation results
+    plot(cv_elasticnet)
+
+    ```
+
+    5\. **Model Comparison Table (with more metrics):**
+
+    ```{r}
+    # Comparison Table with MAE, RMSE, R-squared
+    comparison_table <- data.frame(
+      Model = c("Ridge", "Lasso", "ElasticNet"),
+      MAE = c(ridge_mae, lasso_mae, mean(abs(predict(elasticnet_model, s = best_lambda_elasticnet, newx = test_data) - test_response))),
+      RMSE = c(ridge_rmse, lasso_rmse, sqrt(mean((predict(elasticnet_model, s = best_lambda_elasticnet, newx = test_data) - test_response)^2))),
+      R_squared = c(ridge_r_squared, lasso_r_squared, 1 - sum((predict(elasticnet_model, s = best_lambda_elasticnet, newx = test_data) - test_response)^2) / sum((test_response - mean(test_response))^2))
+    )
+
+    # Print the model comparison table
+    print(comparison_table)
+
+    ```
+
+    6\. **Feature Importance (for interpretation):**
+
+    ```{r}
+    # Plot Feature Importance (based on absolute coefficients)
+    ridge_importance <- abs(as.vector(coef(ridge_model)[-1]))  # Ignore intercept
+    lasso_importance <- abs(as.vector(coef(lasso_model)[-1]))
+
+    # Create data frames for plotting
+    ridge_importance_df <- data.frame(Feature = names(ridge_importance), Importance = ridge_importance)
+    lasso_importance_df <- data.frame(Feature = names(lasso_importance), Importance = lasso_importance)
+
+    # Sort by importance and plot
+    ridge_importance_df <- ridge_importance_df[order(ridge_importance_df$Importance, decreasing = TRUE), ]
+    lasso_importance_df <- lasso_importance_df[order(lasso_importance_df$Importance, decreasing = TRUE), ]
+
+    # Ridge Feature Importance Plot
+    ggplot(ridge_importance_df[1:10, ], aes(x = reorder(Feature, Importance), y = Importance)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      labs(title = "Top 10 Ridge Features by Importance", x = "Feature", y = "Importance")
+
+    # Lasso Feature Importance Plot
+    ggplot(lasso_importance_df[1:10, ], aes(x = reorder(Feature, Importance), y = Importance)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      labs(title = "Top 10 Lasso Features by Importance", x = "Feature", y = "Importance")
+
+    ```
+
+    7\. **Residual Plots:**
+
+    ```{r}
+    # Residual plots for Ridge and Lasso models
+    ridge_residuals <- ridge_preds - test_response
+    lasso_residuals <- lasso_preds - test_response
+
+    # Plot residuals for Ridge
+    ggplot(data.frame(Residuals = ridge_residuals), aes(x = Residuals)) +
+      geom_histogram(bins = 30, fill = "blue", alpha = 0.6) +
+      labs(title = "Ridge Residuals", x = "Residuals", y = "Frequency") +
+      theme_minimal()
+
+    # Plot residuals for Lasso
+    ggplot(data.frame(Residuals = lasso_residuals), aes(x = Residuals)) +
+      geom_histogram(bins = 30, fill = "green", alpha = 0.6) +
+      labs(title = "Lasso Residuals", x = "Residuals", y = "Frequency") +
+      theme_minimal()
+
+    ```
+
+    8\. **Model Interpretability (SHAP values)**
+
+    ```{r}
+    # Load the iml package
+    library(iml)
+
+    # Create a predictor object for Lasso model
+    predictor <- Predictor$new(lasso_model, data = sparse_dtm[train_index, ], y = train_response)
+
+    # SHAP values for the Lasso model
+    shapley <- Shapley$new(predictor, x.interest = sparse_dtm[test_index, ][1, ])  # Choose any test instance
+    shapley$plot()
+
+    ```
+
+```{r,eval=FALSE}
+sparse_dtm <- as.simple_triplet_matrix(dtm)
+dtm_matrix <- as.matrix(dtm)
+sparse_dtm <- Matrix(dtm_matrix, sparse = TRUE)
+
+
+# Create a response variable
+# Example: Use a sentiment score (e.g., syuzhet_vector) as the dependent variable
+response_variable <- syuzhet_vector  # Replace with the actual response variable if different
+
+# Set up cross-validation to find the best lambda for Ridge and Lasso
+set.seed(2024)
+cv_ridge <- cv.glmnet(sparse_dtm, response_variable, alpha = 0)  # Ridge regression
+cv_lasso <- cv.glmnet(sparse_dtm, response_variable, alpha = 1)  # Lasso regression
+
+# Extract the best lambda values
+best_lambda_ridge <- cv_ridge$lambda.min
+best_lambda_lasso <- cv_lasso$lambda.min
+
+# Fit the final Ridge and Lasso models with the best lambda
+ridge_model <- glmnet(sparse_dtm, response_variable, alpha = 0, lambda = best_lambda_ridge)
+lasso_model <- glmnet(sparse_dtm, response_variable, alpha = 1, lambda = best_lambda_lasso)
+
+# Print model summaries
+cat("Ridge Regression Coefficients:\n")
+print(coef(ridge_model))
+
+cat("\nLasso Regression Coefficients:\n")
+print(coef(lasso_model))
+
+# Compare the performance of the models
+cat("\nCross-validated Mean Squared Error (MSE):\n")
+cat("Ridge MSE:", cv_ridge$cvm[cv_ridge$lambda == best_lambda_ridge], "\n")
+cat("Lasso MSE:", cv_lasso$cvm[cv_lasso$lambda == best_lambda_lasso], "\n")
+
+# You can also visualize the results if needed
+plot(cv_ridge)
+plot(cv_lasso)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r,eval=FALSE}
+sparse_dtm <- as.simple_triplet_matrix(dtm)
+dtm_matrix <- as.matrix(dtm)
+sparse_dtm <- Matrix(dtm_matrix, sparse = TRUE)
+
+
+# Create a response variable
+# Example: Use a sentiment score (e.g., syuzhet_vector) as the dependent variable
+response_variable <- syuzhet_vector  # Replace with the actual response variable if different
+
+# Set up cross-validation to find the best lambda for Ridge and Lasso
+set.seed(2024)
+cv_ridge <- cv.glmnet(sparse_dtm, response_variable, alpha = 0)  # Ridge regression
+cv_lasso <- cv.glmnet(sparse_dtm, response_variable, alpha = 1)  # Lasso regression
+
+# Extract the best lambda values
+best_lambda_ridge <- cv_ridge$lambda.min
+best_lambda_lasso <- cv_lasso$lambda.min
+
+# Fit the final Ridge and Lasso models with the best lambda
+ridge_model <- glmnet(sparse_dtm, response_variable, alpha = 0, lambda = best_lambda_ridge)
+lasso_model <- glmnet(sparse_dtm, response_variable, alpha = 1, lambda = best_lambda_lasso)
+
+# Print model summaries
+cat("Ridge Regression Coefficients:\n")
+print(coef(ridge_model))
+
+cat("\nLasso Regression Coefficients:\n")
+print(coef(lasso_model))
+
+# Compare the performance of the models
+cat("\nCross-validated Mean Squared Error (MSE):\n")
+cat("Ridge MSE:", cv_ridge$cvm[cv_ridge$lambda == best_lambda_ridge], "\n")
+cat("Lasso MSE:", cv_lasso$cvm[cv_lasso$lambda == best_lambda_lasso], "\n")
+
+# You can also visualize the results if needed
+plot(cv_ridge)
+plot(cv_lasso)
+
+```
