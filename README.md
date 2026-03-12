@@ -1,4 +1,4 @@
-### Textual Analysis of Monetary Policy Trends using LDAThis repository contains the framework and codebase for performing advanced textual analysis on the State Bank of Pakistan’s Monetary Policy Statements (2005–2024). 
+### Textual Analysis of Monetary Policy Trends using LDA
 By leveraging Natural Language Processing (NLP) and Latent Dirichlet Allocation (LDA), this project identifies thematic shifts and sentiment trends in central bank communications over nearly two decades.
 
 ## Project Overview
